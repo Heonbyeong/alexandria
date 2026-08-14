@@ -1,0 +1,38 @@
+services:
+  kafka:
+    image: apache/kafka:3.9.1
+    container_name: saga-kafka
+    ports:
+      - "9092:9092"
+    environment:
+      # KRaft 모드: ZooKeeper 없이 브로커가 컨트롤러 역할까지 겸함
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:29093
+
+      # 리스너 분리 — Step 0 학습 포인트
+      # INTERNAL(29092): 도커 네트워크 안에서 컨테이너끼리 통신용 (kafka-ui → kafka)
+      # EXTERNAL(9092):  호스트(로컬에서 띄운 Spring 앱)가 localhost:9092로 접속용
+      # ADVERTISED_LISTENERS는 "클라이언트에게 알려주는 접속 주소" — 이게 잘못되면
+      # 최초 연결은 되는데 이후 메타데이터로 받은 주소로 재접속하다 실패한다
+      KAFKA_LISTENERS: INTERNAL://:29092,CONTROLLER://:29093,EXTERNAL://:9092
+      KAFKA_ADVERTISED_LISTENERS: INTERNAL://kafka:29092,EXTERNAL://localhost:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: INTERNAL:PLAINTEXT,CONTROLLER:PLAINTEXT,EXTERNAL:PLAINTEXT
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
+
+      # 단일 브로커라 복제 계수 1
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+
+  kafka-ui:
+    image: provectuslabs/kafka-ui:latest
+    container_name: saga-kafka-ui
+    ports:
+      - "8090:8080"
+    environment:
+      KAFKA_CLUSTERS_0_NAME: local
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:29092
+    depends_on:
+      - kafka
